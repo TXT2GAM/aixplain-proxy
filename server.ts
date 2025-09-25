@@ -350,6 +350,7 @@ async function handleRequest(request: Request): Promise<Response> {
         const decoder = new TextDecoder();
         let buffer = '';
         let hasStreamError = false;
+        let allChunks: Uint8Array[] = [];
 
         try {
           // Read the first chunk to check for stream error
@@ -357,6 +358,7 @@ async function handleRequest(request: Request): Promise<Response> {
           if (value) {
             buffer = decoder.decode(value, { stream: true });
             logger.debug("First streaming chunk:", buffer.substring(0, 200));
+            allChunks.push(value);
 
             // Check if it's a stream error
             if (buffer.includes('"error":"Stream Error"')) {
@@ -365,10 +367,10 @@ async function handleRequest(request: Request): Promise<Response> {
             }
           }
 
-          // Release the reader
-          reader.releaseLock();
-
           if (hasStreamError) {
+            // Release the reader since we're falling back to non-streaming
+            reader.releaseLock();
+
             // Fallback: Make a non-streaming request and convert to streaming
             logger.debug("Making fallback non-streaming request");
             const fallbackPayload = { ...upstreamPayload };
@@ -435,14 +437,57 @@ async function handleRequest(request: Request): Promise<Response> {
                 'Access-Control-Allow-Origin': '*',
               }
             });
+          } else {
+            // No error detected, create a new ReadableStream that includes the already-read chunk
+            const newStream = new ReadableStream({
+              async start(controller) {
+                try {
+                  // First, enqueue the already-read chunk
+                  controller.enqueue(allChunks[0]);
+
+                  // Then read and enqueue the rest of the stream
+                  let chunk;
+                  while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    controller.enqueue(value);
+                  }
+                  controller.close();
+                } catch (error) {
+                  controller.error(error);
+                } finally {
+                  try {
+                    reader.releaseLock();
+                  } catch (e) {
+                    // Ignore release error
+                  }
+                }
+              }
+            });
+
+            logger.debug("Passing through upstream streaming response with error check");
+            return new Response(newStream, {
+              status: upstreamResponse.status,
+              headers: {
+                'Content-Type': 'text/event-stream',
+                'Cache-Control': 'no-cache',
+                'Connection': 'keep-alive',
+                'Access-Control-Allow-Origin': '*',
+              }
+            });
           }
         } catch (error) {
           logger.error("Error checking streaming response:", error);
           // Continue with normal streaming pass-through as fallback
+          try {
+            reader.releaseLock();
+          } catch (e) {
+            // Ignore release error
+          }
         }
       }
 
-      // Normal streaming pass-through (if no Stream Error detected)
+      // Normal streaming pass-through (if no reader or error in checking)
       logger.debug("Passing through upstream streaming response");
       return new Response(upstreamResponse.body, {
         status: upstreamResponse.status,
