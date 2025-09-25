@@ -118,8 +118,7 @@ async function loadModelMappings(): Promise<void> {
     logger.info(`Loaded ${modelMappings.length} model mappings`);
   } catch (error) {
     logger.error("Failed to load models.json:", error);
-    logger.warn("Continuing without model mappings");
-    modelMappings = [];
+    logger.warn("Continuing without model mappings - using fallback models");
   }
 }
 
@@ -618,7 +617,7 @@ async function main() {
   logger.info(`Aixplain Proxy Server starting on port ${port}`);
   logger.info(`Loaded ${modelMappings.length} model mappings`);
 
-  await serve(handleRequest, { port });
+  Deno.serve({ port }, handleRequest);
 }
 
 if (import.meta.main) {
