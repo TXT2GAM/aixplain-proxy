@@ -32,6 +32,10 @@
     "id": "6646261c6eb563165658bbb1"
   },
   {
+    "model": "claude-opus-4.1",
+    "id": "689cc60d3ce71f58d73cc984"
+  },
+  {
     "model": "claude-3.7-sonnet",
     "id": "67be216bd8f6a65d6f74d5e9"
   },
@@ -44,11 +48,19 @@
     "id": "68d43005ce180d2fdb4deac7"
   },
   {
+    "model": "kimi-k2-instruct",
+    "id": "687e706a98bec9224596d301"
+  },
+  {
     "model": "deepseek-v3.1",
     "id": "68d40ca9c8568c61c1c4f403"
   },
   {
     "model": "deepseek-v3.1-terminus",
     "id": "68d40bacc8568c61c1c4f402"
+  },
+  {
+    "model": "deepseek-v3-03-24",
+    "id": "67e2f3f243d4fa5705dfa71e"
   }
 ]
