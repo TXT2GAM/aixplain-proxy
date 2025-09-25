@@ -1,0 +1,54 @@
+[
+  {
+    "model": "gpt-5",
+    "id": "6895d692d50c89537c1cf236"
+  },
+  {
+    "model": "gpt-5-mini",
+    "id": "6895d6d1d50c89537c1cf237"
+  },
+  {
+    "model": "gpt-5-nano",
+    "id": "6895d70ed50c89537c1cf238"
+  },
+  {
+    "model": "gpt-oss-120b",
+    "id": "6895f768d50c89537c1cf24e"
+  },
+  {
+    "model": "gpt-4.1-mini",
+    "id": "67fd9ddfef0365783d06e2ef"
+  },
+  {
+    "model": "gpt-4.1",
+    "id": "67fd9d6aef0365783d06e2ee"
+  },
+  {
+    "model": "gpt-4o-mini",
+    "id": "669a63646eb56306647e1091"
+  },
+  {
+    "model": "gpt-4o",
+    "id": "6646261c6eb563165658bbb1"
+  },
+  {
+    "model": "claude-3.7-sonnet",
+    "id": "67be216bd8f6a65d6f74d5e9"
+  },
+  {
+    "model": "claude-3.5-sonnet",
+    "id": "671be4886eb56397e51f7541"
+  },
+  {
+    "model": "gemini-2.5-pro",
+    "id": "68d43005ce180d2fdb4deac7"
+  },
+  {
+    "model": "deepseek-v3.1",
+    "id": "68d40ca9c8568c61c1c4f403"
+  },
+  {
+    "model": "deepseek-v3.1-terminus",
+    "id": "68d40bacc8568c61c1c4f402"
+  }
+]
