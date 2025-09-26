@@ -35,11 +35,11 @@ const MODEL_MAPPINGS: Record<string, string> = {
   "claude-opus-4.1": "689cc60d3ce71f58d73cc984",
   "claude-3.7-sonnet": "67be216bd8f6a65d6f74d5e9",
   "claude-3.5-sonnet": "671be4886eb56397e51f7541",
-  "gemini-2.5-pro": "68d43005ce180d2fdb4deac7",
-  "kimi-k2-instruct": "687e706a98bec9224596d301",
+  // "gemini-2.5-pro": "68d43005ce180d2fdb4deac7",
+  // "kimi-k2-instruct": "687e706a98bec9224596d301",
   "deepseek-v3.1": "68d40ca9c8568c61c1c4f403",
   "deepseek-v3.1-terminus": "68d40bacc8568c61c1c4f402",
-  "deepseek-v3-0324": "67e2f3f243d4fa5705dfa71e"
+  // "deepseek-v3-0324": "67e2f3f243d4fa5705dfa71e"
 };
 
 // Logging System
@@ -188,9 +188,6 @@ function getNestedProperty(obj: any, path: string): any {
   return result;
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
 
 // Map model name to actual ID
 function mapModelName(modelName: string): string {
@@ -279,8 +276,6 @@ async function handleRequest(request: Request): Promise<Response> {
   const UPSTREAM_API_URL = "https://models.aixplain.com/api/v1/chat/completions";
   const CONTENT_FIELD = "choices[0].message.content";
   const FINISH_REASON_FIELD = "choices[0].finish_reason";
-  const CHUNK_SIZE = 5;
-  const DELAY_MS = 50;
 
   // Parse client request
   let clientRequest: ChatCompletionRequest;
@@ -540,76 +535,17 @@ async function handleRequest(request: Request): Promise<Response> {
 
       // Return appropriate response format based on client's request
       if (clientWantsStreaming) {
-        // Simulate streaming for client
+        // Convert non-streaming response to single-chunk streaming
         const stream = new ReadableStream({
-          async start(controller) {
+          start(controller) {
             const encoder = new TextEncoder();
-            let isClosed = false;
 
-            // Check if controller is still usable
-            const isControllerUsable = () => {
-              try {
-                // Try to access the controller's desiredSize property
-                // If it throws, the controller is no longer usable
-                return controller.desiredSize !== null && !isClosed;
-              } catch {
-                isClosed = true;
-                return false;
-              }
-            };
+            // Send entire content as one chunk
+            controller.enqueue(encoder.encode(createSSEChunk(finalContent, originalModel, finalFinishReason)));
+            controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+            controller.close();
 
-            const safeEnqueue = (data: Uint8Array) => {
-              if (isControllerUsable()) {
-                try {
-                  controller.enqueue(data);
-                  return true;
-                } catch (error) {
-                  isClosed = true;
-                  logger.debug("Stream controller became unusable during enqueue, client likely disconnected");
-                  return false;
-                }
-              }
-              return false;
-            };
-
-            const safeClose = () => {
-              if (isControllerUsable()) {
-                try {
-                  isClosed = true;
-                  controller.close();
-                } catch (error) {
-                  logger.debug("Stream controller error during close, likely already closed");
-                }
-              }
-            };
-
-            try {
-              for (let i = 0; i < finalContent.length; i += CHUNK_SIZE) {
-                if (!isControllerUsable()) {
-                  logger.debug("Stream controller no longer usable, stopping simulation");
-                  break;
-                }
-
-                const chunk = finalContent.slice(i, i + CHUNK_SIZE);
-                if (!safeEnqueue(encoder.encode(createSSEChunk(chunk, originalModel, null)))) {
-                  break;
-                }
-
-                if (DELAY_MS > 0 && isControllerUsable()) {
-                  await sleep(DELAY_MS);
-                }
-              }
-
-              if (isControllerUsable()) {
-                safeEnqueue(encoder.encode(createSSEChunk(null, originalModel, finalFinishReason)));
-                safeEnqueue(encoder.encode("data: [DONE]\n\n"));
-                safeClose();
-                logger.debug("Simulated stream finished successfully");
-              }
-            } catch (error) {
-              logger.debug("Stream simulation interrupted:", error.message);
-              // Don't try to call controller.error() as it might also fail
-            }
+            logger.debug("Single-chunk streaming response sent");
           }
         });
 
