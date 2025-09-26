@@ -15,13 +15,32 @@
  *
  * Features:
  * - Smart streaming: Only converts non-streaming upstream APIs to streaming when client requests streaming
- * - Model mapping: Maps user-friendly model names to actual IDs using models.json
+ * - Model mapping: Maps user-friendly model names to actual IDs using embedded dictionary
  * - /v1/models endpoint: Returns available models in OpenAI format
  * - Configurable logging system (default: error only)
  * - CORS support
  */
 
 import { serve } from "https://deno.land/std@0.208.0/http/server.ts";
+
+// Model mappings embedded as dictionary
+const MODEL_MAPPINGS: Record<string, string> = {
+  "gpt-5": "6895d692d50c89537c1cf236",
+  "gpt-5-mini": "6895d6d1d50c89537c1cf237",
+  "gpt-5-nano": "6895d70ed50c89537c1cf238",
+  "gpt-4.1-mini": "67fd9ddfef0365783d06e2ef",
+  "gpt-4.1": "67fd9d6aef0365783d06e2ee",
+  "gpt-4o-mini": "669a63646eb56306647e1091",
+  "gpt-4o": "6646261c6eb563165658bbb1",
+  "claude-opus-4.1": "689cc60d3ce71f58d73cc984",
+  "claude-3.7-sonnet": "67be216bd8f6a65d6f74d5e9",
+  "claude-3.5-sonnet": "671be4886eb56397e51f7541",
+  "gemini-2.5-pro": "68d43005ce180d2fdb4deac7",
+  "kimi-k2-instruct": "687e706a98bec9224596d301",
+  "deepseek-v3.1": "68d40ca9c8568c61c1c4f403",
+  "deepseek-v3.1-terminus": "68d40bacc8568c61c1c4f402",
+  "deepseek-v3-0324": "67e2f3f243d4fa5705dfa71e"
+};
 
 // Logging System
 enum LogLevel {
@@ -107,20 +126,12 @@ interface OpenAIModel {
   owned_by: string;
 }
 
-// Global state
-let modelMappings: ModelMapping[] = [];
-
-// Load model mappings from models.json
-async function loadModelMappings(): Promise<void> {
-  try {
-    const modelsFile = await Deno.readTextFile("./models.json");
-    modelMappings = JSON.parse(modelsFile);
-    logger.info(`Loaded ${modelMappings.length} model mappings`);
-  } catch (error) {
-    logger.error("Failed to load models.json:", error);
-    logger.warn("Continuing without model mappings - using fallback models");
-  }
+// Convert embedded mappings to ModelMapping array format for compatibility
+function getModelMappings(): ModelMapping[] {
+  return Object.entries(MODEL_MAPPINGS).map(([model, id]) => ({ model, id }));
 }
+
+const modelMappings: ModelMapping[] = getModelMappings();
 
 // Helper functions
 function generateChatcmplId(): string {
@@ -183,14 +194,15 @@ function sleep(ms: number): Promise<void> {
 
 // Map model name to actual ID
 function mapModelName(modelName: string): string {
-  const mapping = modelMappings.find(m => m.model === modelName);
-  return mapping ? mapping.id : modelName;
+  return MODEL_MAPPINGS[modelName] || modelName;
 }
 
 // Get user-friendly model name from ID
 function getModelDisplayName(modelId: string): string {
-  const mapping = modelMappings.find(m => m.id === modelId);
-  return mapping ? mapping.model : modelId;
+  for (const [model, id] of Object.entries(MODEL_MAPPINGS)) {
+    if (id === modelId) return model;
+  }
+  return modelId;
 }
 
 // Handle /v1/models endpoint
@@ -293,7 +305,10 @@ async function handleRequest(request: Request): Promise<Response> {
   const mappedModelId = mapModelName(originalModel);
 
   // Prepare upstream request
-  const upstreamPayload = { ...clientRequest };
+  const upstreamPayload = {
+    max_tokens: 8192,
+    ...clientRequest
+  };
   upstreamPayload.model = mappedModelId;
 
   // Key fix: Preserve client's streaming preference for upstream request
@@ -654,9 +669,7 @@ async function handleRequest(request: Request): Promise<Response> {
 }
 
 // Initialize and start server
-async function main() {
-  await loadModelMappings();
-
+function main() {
   const port = parseInt(Deno.env.get("PORT") || "8000");
 
   logger.info(`Aixplain Proxy Server starting on port ${port}`);
