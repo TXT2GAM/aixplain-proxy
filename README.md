@@ -14,10 +14,10 @@ deno run --allow-net --allow-read --allow-env server.ts
 PORT=3000 LOG_LEVEL=debug deno run --allow-net --allow-read --allow-env server.ts
 
 # Windows Command Prompt:
-set PORT=3000&& set LOG_LEVEL=debug&& deno run --allow-net --allow-read --allow-env server.ts
+set PORT=3000&& set LOG_LEVEL="debug"&& deno run --allow-net --allow-read --allow-env server.ts
 
 # Windows PowerShell:
-$env:PORT=3000; $env:LOG_LEVEL=debug; deno run --allow-net --allow-read --allow-env server.ts
+$env:PORT=3000; $env:LOG_LEVEL="debug"; deno run --allow-net --allow-read --allow-env server.ts
 ```
 
 ## API Usage

@@ -96,7 +96,7 @@ class Logger {
 }
 
 // Initialize logger
-const logger = new Logger(Deno.env.get("LOG_LEVEL") || "error");
+const logger = new Logger(Deno.env.get("LOG_LEVEL") || "warn");
 
 // Types
 interface ModelMapping {
@@ -408,11 +408,36 @@ async function handleRequest(request: Request): Promise<Response> {
             }
 
             const fallbackJson = await fallbackResponse.json();
+
+            // Check for upstream API errors in fallback response
+            if (fallbackJson.status === "FAILED" || fallbackJson.error) {
+              const errorMessage = fallbackJson.supplierError || fallbackJson.error || "Unknown upstream error";
+              logger.warn("Fallback API returned error:", errorMessage);
+
+              // Determine appropriate status code based on error type
+              let statusCode = 500; // default server error
+              if (errorMessage.includes("Too many requests") || fallbackJson.error === "err.supplier_error") {
+                statusCode = 429;
+              }
+
+              return new Response(JSON.stringify({
+                error: errorMessage,
+                type: fallbackJson.error || "upstream_error"
+              }), {
+                status: statusCode,
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Access-Control-Allow-Origin': '*'
+                }
+              });
+            }
+
             const fullContent = getNestedProperty(fallbackJson, CONTENT_FIELD);
             const finishReason = getNestedProperty(fallbackJson, FINISH_REASON_FIELD);
 
             if (fullContent === undefined || fullContent === null) {
               logger.error("Could not extract content from fallback response");
+              logger.info("Full fallback response JSON:", JSON.stringify(fallbackJson, null, 2));
               return new Response(JSON.stringify({ error: "Failed to extract content from fallback response" }), {
                 status: 502,
                 headers: {
@@ -513,14 +538,37 @@ async function handleRequest(request: Request): Promise<Response> {
       const upstreamJson = await upstreamResponse.json();
       logger.debug("Received upstream JSON response");
 
+      // Check for upstream API errors first
+      if (upstreamJson.status === "FAILED" || upstreamJson.error) {
+        const errorMessage = upstreamJson.supplierError || upstreamJson.error || "Unknown upstream error";
+        logger.warn("Upstream API returned error:", errorMessage);
+
+        // Determine appropriate status code based on error type
+        let statusCode = 500; // default server error
+        if (errorMessage.includes("Too many requests") || upstreamJson.error === "err.supplier_error") {
+          statusCode = 429;
+        }
+
+        return new Response(JSON.stringify({
+          error: errorMessage,
+          type: upstreamJson.error || "upstream_error"
+        }), {
+          status: statusCode,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+          }
+        });
+      }
+
       // Extract content and finish reason
       const fullContent = getNestedProperty(upstreamJson, CONTENT_FIELD);
       const finishReason = getNestedProperty(upstreamJson, FINISH_REASON_FIELD);
 
       if (fullContent === undefined || fullContent === null) {
         logger.error(`Could not extract content from upstream response using path: ${CONTENT_FIELD}`);
-        logger.error("Upstream JSON structure might have changed or path is incorrect.");
-        logger.error("Received JSON sample:", JSON.stringify(upstreamJson).substring(0, 1000));
+        // logger.error("Upstream JSON structure might have changed or path is incorrect.");
+        // logger.error("Full upstream response JSON:", JSON.stringify(upstreamJson, null, 2));
         return new Response(JSON.stringify({ error: "Failed to extract content from upstream response. Check server logs and hardcoded paths." }), {
           status: 502,
           headers: {
